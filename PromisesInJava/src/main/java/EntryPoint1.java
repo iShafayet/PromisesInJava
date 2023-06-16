@@ -2,10 +2,12 @@ package main.java;
 
 import main.java.promisesinjava.Promise;
 
+import java.util.Arrays;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
 import java.util.function.Function;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 public class EntryPoint1 {
 
@@ -82,34 +84,79 @@ public class EntryPoint1 {
 //        log("Test Block 3 - End");
 
 
-        log("Test Block 4 - Start");
+//        log("Test Block 4 - Start");
+//
+//        var pool = Executors.newFixedThreadPool(8);
+//
+//        Function<Integer, Promise<Integer>> innerIncrementSlowly = (value) -> {
+//            return new Promise<>(pool, (resolveFn) -> {
+//                try {
+//                    Thread.sleep(2000);
+//                } catch (InterruptedException e) {
+//                    throw new RuntimeException(e);
+//                }
+//                resolveFn.accept(value + 1);
+//            });
+//        };
+//
+//        innerIncrementSlowly.apply(0).thenPromise(pool, (value) -> {
+//            log("A " + value);
+//            return innerIncrementSlowly.apply(value);
+//        }).thenPromise(pool, (value) -> {
+//            log("B " + value);
+//            return innerIncrementSlowly.apply(value);
+//        }).then(pool, (value) -> {
+//            log("C " + value);
+//            log("End of output");
+//            System.exit(0);
+//        });
+//
+//        log("Test Block 4 - End");
 
-        var pool = Executors.newFixedThreadPool(8);
 
-        Function<Integer, Promise<Integer>> innerIncrementSlowly = (value) -> {
-            return new Promise<>(pool, (resolveFn) -> {
-                try {
-                    Thread.sleep(2000);
-                } catch (InterruptedException e) {
-                    throw new RuntimeException(e);
-                }
-                resolveFn.accept(value + 1);
-            });
-        };
+//        log("Test Block 5 - Start");
+//
+//        var p1 = incrementSlowly(0).thenPromise((value) -> {
+//            log("A " + value);
+//            return incrementSlowly(value);
+//        });
+//
+//        var p2 = incrementSlowly(0);
+//
+//        var p3 = incrementSlowly(3);
+//
+//        Promise.all(p1, p2, p3).then((ignored) -> {
+//            log("All promises were resolved");
+//            log("End of output");
+//            System.exit(0);
+//        });
+//
+//        log("Test Block 5 - End");
 
-        innerIncrementSlowly.apply(0).thenPromise(pool, (value) -> {
+
+        log("Test Block 6 - Start");
+        var startSnapshot = time("Start");
+
+        var p1 = incrementSlowly(0);
+
+        var p2 = incrementSlowly(0).thenPromise((value) -> {
             log("A " + value);
-            return innerIncrementSlowly.apply(value);
-        }).thenPromise(pool, (value) -> {
-            log("B " + value);
-            return innerIncrementSlowly.apply(value);
-        }).then(pool, (value) -> {
-            log("C " + value);
+            return incrementSlowly(value);
+        });
+
+        var p3 = incrementSlowly(2);
+
+        time(startSnapshot, "All promises created");
+
+        Promise.allAsArray(Integer.class, p1, p2, p3).then((Integer[] results) -> {
+            time(startSnapshot, "All promises resolved");
+            var intArray = Arrays.stream(results).mapToInt(v -> v).toArray();
+            log("All promises were resolved. Results as array: " + Arrays.toString(intArray));
             log("End of output");
             System.exit(0);
         });
 
-        log("Test Block 4 - End");
+        log("Test Block 6 - End");
 
     }
 
@@ -117,5 +164,18 @@ public class EntryPoint1 {
         var t = "[" + Thread.currentThread().getName() + "] ";
         System.out.println(t + message);
     }
+
+    static long time(String prefix) {
+        var now = System.currentTimeMillis();
+        log("TIME " + "0" + " " + prefix);
+        return now;
+    }
+
+    static long time(long previousSnapshot, String prefix) {
+        var now = System.currentTimeMillis();
+        log("TIME " + (now - previousSnapshot) + " " + prefix);
+        return now;
+    }
+
 
 }

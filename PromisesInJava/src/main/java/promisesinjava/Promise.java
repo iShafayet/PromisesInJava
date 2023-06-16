@@ -1,8 +1,9 @@
 package main.java.promisesinjava;
 
-import java.util.concurrent.Executor;
+import java.lang.reflect.Array;
+import java.util.Arrays;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -108,6 +109,44 @@ public class Promise<T> {
     public void then(ExecutorService executorService, Consumer<T> fn) {
         this.invokeOnExecutor = executorService;
         then(fn);
+    }
+
+
+    @SafeVarargs
+    public static <V> Promise<V[]> allAsArray(Class<V> vClass, Promise<V>... promises) {
+        var aggregatePromise = new Promise<V[]>();
+
+        var resultArray = (V[]) Array.newInstance(vClass, promises.length);
+        AtomicInteger completionCount = new AtomicInteger();
+
+        for (var i = 0; i < promises.length; i++) {
+            int finalI = i;
+            promises[i].then((value) -> {
+                resultArray[finalI] = value;
+                completionCount.addAndGet(1);
+                if (completionCount.intValue() == promises.length) {
+                    aggregatePromise.resolve(resultArray);
+                }
+            });
+        }
+
+        return aggregatePromise;
+    }
+
+    public static Promise<Void> all(Promise<?>... promises) {
+        var aggregatePromise = new Promise<Void>();
+
+        AtomicInteger completionCount = new AtomicInteger();
+        Arrays.stream(promises).forEach(promise -> {
+            promise.then((ignored) -> {
+                completionCount.addAndGet(1);
+                if (completionCount.intValue() == promises.length) {
+                    aggregatePromise.resolve(null);
+                }
+            });
+        });
+
+        return aggregatePromise;
     }
 
     private void debug(String message) {
