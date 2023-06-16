@@ -1,5 +1,7 @@
 package main.java.promisesinjava;
 
+import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -15,6 +17,8 @@ public class Promise<T> {
     private boolean isResolved = false;
     private Runnable invokable;
 
+    private ExecutorService invokeOnExecutor;
+
     private boolean isInvoked = false;
 
     public Promise() {
@@ -22,18 +26,13 @@ public class Promise<T> {
         debug("Created");
     }
 
-//    public Promise(Consumer<Consumer<T>> fn) {
-//        Executors.newCachedThreadPool().submit(() -> {
-//            fn.accept((results) -> {
-//                value = results;
-//                _isResolved = true;
-//                if (_invokable != null) {
-//                    _invokable.apply(value);
-//                }
-//            });
-//            return null;
-//        });
-//    }
+    public Promise(ExecutorService executorService, Consumer<Consumer<T>> fn) {
+        executorService.submit(() -> {
+            fn.accept((results) -> {
+                resolve(results);
+            });
+        });
+    }
 
     public void resolve(T results) {
         if (isResolved) {
@@ -55,8 +54,13 @@ public class Promise<T> {
             return;
         }
         isInvoked = true;
-        invokable.run();
-//        Executors.newSingleThreadExecutor().submit(invokable);
+
+        debug("Invoking receiver with value: " + value);
+        if (invokeOnExecutor != null) {
+            invokeOnExecutor.submit(invokable);
+        } else {
+            invokable.run();
+        }
     }
 
     public <U> Promise<U> then(Function<T, U> fn) {
@@ -88,23 +92,30 @@ public class Promise<T> {
         invokable = () -> {
             fn.accept(value);
         };
+        invokeIfSubscribedAndResolved();
     }
 
-//    public <V extends Promise> Promise<V> then(Function<T, V> fn) {
-//        var nextPromise = new Promise<V>();
-//        invokable = ()->{
-//            var nextValue  = fn.apply(value);
-//            nextPromise.resolve(nextValue);
-//        };
-//        return nextPromise;
-//    }
+    public <U> Promise<U> then(ExecutorService executorService, Function<T, U> fn) {
+        this.invokeOnExecutor = executorService;
+        return then(fn);
+    }
+
+    public <U> Promise<U> thenPromise(ExecutorService executorService, Function<T, Promise<U>> fn) {
+        this.invokeOnExecutor = executorService;
+        return thenPromise(fn);
+    }
+
+    public void then(ExecutorService executorService, Consumer<T> fn) {
+        this.invokeOnExecutor = executorService;
+        then(fn);
+    }
 
     private void debug(String message) {
-        var r = " R:" + (isResolved ? "1" : "0");
+        var r = "R:" + (isResolved ? "1" : "0");
         var s = " S:" + (invokable != null ? "1" : "0");
         var i = " I:" + (isInvoked ? "1" : "0");
         var t = "[" + Thread.currentThread().getName() + "] ";
-        System.out.println(t + "Promise #" + uuid + ": " + r + s + i + "  " + message);
+        System.out.println(t + "Promise #" + uuid + " [" + r + s + i + "]  " + message);
     }
 
 
